@@ -11,19 +11,15 @@
 #  WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 #  License for the specific language governing permissions and limitations
 #  under the License.
+from __future__ import unicode_literals
+import os
 from docker.errors import DockerException, NotFound
-from oslo_log import log as logging
-from oslo_config import cfg
 from docker import Client as DC
+import sys
+import logging
 
-LOG = logging.getLogger(__name__)
-
-opts = [
-    cfg.StrOpt('url'),
-    cfg.StrOpt('image'),
-]
-CONF = cfg.CONF
-CONF.register_opts(opts, group="clients_docker")
+LOG = logging.getLogger()
+logging.basicConfig(level=logging.DEBUG)
 
 
 class DockerClient(object):
@@ -31,54 +27,90 @@ class DockerClient(object):
     Wrapper for Docker client
     """
 
-    def __init__(self, url=CONF.clients_docker.url):
-        self._url = url
+    def __init__(self, url=None):
+        """Connect to docker server"""
+        if not url:
+            url = "unix:///var/run/docker.sock"
         self.container = None
+        self.image_name = None
+        self.cookbook_name = None
         try:
-            self.dc = DC(base_url=self._url)
+            self.dc = DC(base_url=url)
         except DockerException as e:
             LOG.error("Docker client error: %s" % e)
             raise e
 
-    def recipe_deployment_test(self, recipe, image=CONF.clients_docker.image):
+    def generate_initial_image(self, dockerfile, chefdir):
+        """generate docker image"""
+        status = True
+        root_dir, self.cookbook_name = os.path.split(chefdir)
+        # inject config files dir to syspath
+        LOG.debug("injecting dir %s to syspath..." % root_dir)
+        wp = os.path.abspath(root_dir)
+        sys.path.insert(0, wp)
+        os.chdir(wp)
+        # inject cookbook to dockerfile
+        LOG.debug("injecting cookbook to dockerfile...")
+        with open(dockerfile, "r") as f:
+            cont = f.read()
+        with open("Dockerfile", "w") as f:
+            f.write(cont.replace("<<COOKBOOKNAME>>", self.cookbook_name))
+        self.image_name = "docker-%s" % self.cookbook_name
+        # generate image
+        LOG.debug("generating image %s" % self.image_name)
+        with open("Dockerfile") as df:
+            resp = self.dc.build(
+                fileobj=df,
+                rm=True,
+                tag=self.image_name
+            )
+        for l in resp:
+            if "error" in l.lower():
+                status = False
+            LOG.debug(l)
+        return status
+
+    def dump_docker_image(self):
+        """generate file from docker image"""
+        LOG.debug("Dumping Docker Image %s" % self.image_name)
+        with open("%s.tar" % self.image_name, 'wb') as image_tar:
+            image_tar.write(self.dc.get_image("%s:latest" % self.image_name).data)
+
+    def deploy_cookbook(self):
         """
         Try to process a recipe and return results
         :param recipe: recipe to deploy
         :param image: image to deploy to
         :return: dictionary with results
         """
-        LOG.debug("Sending recipe to docker server in %s" % self._url)
+        LOG.debug("Sending recipe to docker server")
         b_success = True
         msg = {}
-        self.run_container(image)
+        self.run_container()
         # inject custom solo.json/solo.rb file
-        json_cont = CONF.clients_chef.cmd_config % recipe
+        json_cont = CONF.clients_chef.cmd_config % self.cookbook_name
         cmd_inject = CONF.clients_chef.cmd_inject.format(json_cont)
         self.execute_command(cmd_inject)
 
-        msg['install'] = self.run_install(recipe)
-        b_success &= msg['install']['success']
-        msg['test'] = self.run_test(recipe)
-        b_success &= msg['test']['success']
-        msg['deploy'] = self.run_deploy(recipe)
+        msg['deploy'] = self.run_deploy()
         b_success &= msg['deploy']['success']
 
         # check execution output
         if b_success:
             msg['result'] = {
                 'success': True,
-                'result': "Recipe %s successfully deployed\n" % recipe
+                'result': "Recipe %s successfully deployed\n" % self.cookbook_name
             }
         else:
             msg['result'] = {
                 'success': False,
-                'result': "Error deploying recipe {}\n".format(recipe)
+                'result': "Error deploying recipe {}\n".format(self.cookbook_name)
             }
             LOG.error(msg)
         self.remove_container()
         return msg
 
-    def run_deploy(self, recipe):
+    def run_deploy(self):
         """ Run recipe deployment
         :param recipe: recipe to deploy
         :return msg: dictionary with results and state
@@ -99,54 +131,25 @@ class DockerClient(object):
             LOG.error("Recipe deployment exception %s" % e)
         return msg
 
-    def run_test(self, recipe):
-        """ Test cookbook syntax
-        :param recipe: recipe to test
-        :return msg: dictionary with results and state
-        """
-        try:
-            cmd_test = CONF.clients_chef.cmd_test.format(recipe)
-            resp_test = self.execute_command(cmd_test)
-            msg = {
-                'success': True,
-                'response': resp_test
-            }
-            for line in resp_test.splitlines():
-                if "ERROR" in line:
-                    msg['success'] = False
-            LOG.debug("Test result: %s" % resp_test)
-        except Exception as e:
-            self.remove_container(self.container)
-            LOG.error("Cookbook syntax exception %s" % e)
-        return msg
+    def generate_final_image(self):
+        self.stop_container()
+        self.commit_container()
+        res = self.dump_docker_image()
+        return res
 
-    def run_install(self, recipe):
-        """Run download and install command
-        :param recipe: recipe to process
-        :return msg: operation result
-        """
-        try:
-            cmd_install = CONF.clients_chef.cmd_install.format(recipe)
-            resp_install = self.execute_command(cmd_install)
-            msg = {
-                'success': True,
-                'response': resp_install
-            }
-            for line in resp_install.splitlines():
-                if "ERROR" in line:
-                    msg['success'] = False
-            LOG.debug("Install result: %s" % resp_install)
-        except Exception as e:
-            self.remove_container(self.container)
-            LOG.error("Chef install exception: %s" % e)
-        return msg
+    def stop_container(self):
+        res = self.dc.stop(self.container)
+        return res
 
-    def run_container(self, image):
+    def commit_container(self):
+        pass
+
+    def run_container(self):
         """Run and start a container based on the given image
         :param image: image to run
         :return:
         """
-        contname = "{}-validate".format(image).replace("/", "_")
+        contname = "{}-deploy".format(self.image_name).replace("/", "_")
         try:
             try:
                 self.dc.remove_container(contname, force=True)
@@ -154,7 +157,7 @@ class DockerClient(object):
             except NotFound:
                 pass
             self.container = self.dc.create_container(
-                image,
+                self.image_name,
                 tty=True,
                 name=contname
             ).get('Id')

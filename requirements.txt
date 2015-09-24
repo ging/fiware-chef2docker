@@ -2,6 +2,4 @@
 # of appearance. Changing the order has an impact on the overall integration
 # process, which may cause wedges in the gate later.
 
-oslo.config == 2.2.0
-python-keystoneclient
 docker-py == 1.3.1

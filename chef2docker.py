@@ -11,88 +11,48 @@
 #  License for the specific language governing permissions and limitations
 #  under the License.
 
-"""Helper tool to generate a valid deployment glance image in docker format"""
+"""Helper tool to generate a valid deployment image in docker format"""
 
 from __future__ import unicode_literals
-
+import argparse
 import logging
-import gc as collector
 import os
-import subprocess
+from docker_client import DockerClient
 
-from docker import Client as DockerClient
-from oslo_config import cfg
-
-from glance_client import upload_to_glance
-
-opts = [
-    cfg.StrOpt('url'),
-    cfg.StrOpt('image'),
-]
-CONF = cfg.CONF
-CONF.register_opts(opts, group="clients_docker")
 LOG = logging.getLogger()
 logging.basicConfig(level=logging.DEBUG)
-
-
-def dock_image():
-    """generate docker image"""
-    import sys
-    import os
-    status = True
-    dc = DockerClient(base_url=CONF.clients_docker.url)
-    # inject config files dir to syspath
-    wp = os.path.abspath(CONF.config_dir)
-    sys.path.insert(0, wp)
-    os.chdir(wp)
-    with open("ChefImage.docker") as dockerfile:
-        resp = dc.build(
-            fileobj=dockerfile,
-            rm=True,
-            tag=CONF.clients_docker.image
-        )
-    for l in resp:
-        if "error" in l.lower():
-            status = False
-        LOG.debug(l)
-    return status
-
-
-def cmdline_upload():
-    """upload docker image to glance via commandline"""
-    # only admin can upload images from commandline
-    os.environ.update({'OS_USERNAME': 'admin'})
-    cmd = "docker save {name} | " \
-          "glance image-create " \
-          "--is-public=True " \
-          "--container-format=docker " \
-          "--disk-format=raw " \
-          "--name {name}".format(name=CONF.tag)
-    logging.info("Executing %s" % cmd)
-    subprocess.call([cmd], shell=True)
-
-
-def dump_docker_image():
-    """generate file from docker image"""
-    LOG.debug("Dumping Docker Image %s" % CONF.tag)
-    dc = DockerClient(base_url=CONF.clients_chef.url)
-    with open("/tmp/temp.tar", 'wb') as image_tar:
-        image_tar.write(dc.get_image("%s:latest" % CONF.tag).data)
-    del dc
-    collector.collect()
 
 
 def main():
     """
     Generates a Docker Image of ChefSDK based on a local dockerfile.
     Installs a local recipe in the image.
-    Uploads the generated image to the Glance server.
     :return:
     """
-    ok = dock_image()
-    if ok:
-        upload_to_glance()
-
+    # Parse the command line arguments
+    parser = argparse.ArgumentParser(
+        description='Generates Docker images based on Chef cookbooks')
+    parser.add_argument('dockerfile', metavar='DOCKER_FILE', help='The Dockerfile to deploy in')
+    parser.add_argument('chef_dir', metavar='CHEF_DIR', help='The chef cookbook to deploy')
+    args = parser.parse_args()
+    docker_file = os.path.abspath(args.dockerfile)
+    chef_dir = os.path.abspath(args.chef_dir)
+    # generate the docker image
+    print "Connecting to Docker Client...",
+    dc = DockerClient()
+    print "OK"
+    print "Generating Initial Image...",
+    sta = dc.generate_initial_image(docker_file, chef_dir)
+    print "OK" if sta else "FAILED"
+    exit(1)
+    print("Deploying Cookbook...",)
+    res = dc.deploy_cookbook()
+    print("OK")
+    LOG.debug(res)
+    print("Generating Final Image...",)
+    res = dc.generate_final_image()
+    print("OK")
+    LOG.debug(res)
 
 if __name__ == '__main__':
     main()

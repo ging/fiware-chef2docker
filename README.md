@@ -18,6 +18,10 @@ Features Implemented
 --------------------
 Chef Recipe to docker image conversion
 
+Commandline Usage
+-----------------
+
+chef2docker [image_name] [chef_cookbook_dir]
 License
 -------
 

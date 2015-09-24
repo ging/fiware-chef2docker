@@ -38,6 +38,9 @@ RUN /opt/chefdk/embedded/bin/gem install knife-github-cookbooks && \
 # Configure Chef-solo
 RUN echo 'cookbook_path "/var/chef/cookbooks"\nlog_level :debug' > /etc/chef/solo.rb
 
+# Copy cookbook to image
+COPY <<COOKBOOKNAME>> /var/chef/cookbooks/<<COOKBOOKNAME>>
+
 # Set the default directory where CMD will execute
 WORKDIR /etc/chef
 
