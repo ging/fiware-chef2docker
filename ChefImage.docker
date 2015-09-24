@@ -23,9 +23,10 @@ RUN cd /tmp && \
 
 # knife github helper gem
 RUN /opt/chefdk/embedded/bin/gem install knife-github-cookbooks && \
-    mkdir /var/chef && \
     mkdir /etc/chef && \
+    mkdir /var/chef && \
     mkdir /var/chef/cookbooks  && \
+    mkdir /var/chef/cookbooks/<<COOKBOOKNAME>>  && \
     cd /var/chef/cookbooks && \
     git init && \
     git config user.name "demo" && \
@@ -36,13 +37,17 @@ RUN /opt/chefdk/embedded/bin/gem install knife-github-cookbooks && \
     rm -rf /tmp/*
 
 # Configure Chef-solo
-RUN echo 'cookbook_path "/var/chef/cookbooks"\nlog_level :debug' > /etc/chef/solo.rb
+COPY solo.rb /etc/chef/solo.rb
+COPY solo.json /etc/chef/solo.json
 
 # Copy cookbook to image
-COPY <<COOKBOOKNAME>> /var/chef/cookbooks/<<COOKBOOKNAME>>
+COPY <<COOKBOOKNAME>> /var/chef/cookbooks/<<COOKBOOKNAME>>/
 
 # Set the default directory where CMD will execute
 WORKDIR /etc/chef
+
+# Run the chef-solo engine
+RUN chef-solo -c /etc/chef/solo.rb -j /etc/chef/solo.json
 
 # Bash command prompt by default
 CMD ["/bin/bash"]

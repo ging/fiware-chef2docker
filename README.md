@@ -11,17 +11,26 @@ FI-Ware Chef2Docker
 Description
 -----------
 
-A simple helper script to generate docker images from chef recipes
-Optionally uploads the docker image to OpenStack Glance for deployment with nova-docker plugin.
+A simple helper script to install software in generated docker images from chef recipes
 
 Features Implemented
 --------------------
 Chef Recipe to docker image conversion
 
+Requirements
+------------
+A local docker server with version >= 0.9
+A chef cookbook folder placed in the script path (needed by the generated Dockerfile for injection)
+
+Installation
+------------
+No installation is necessary
+
 Commandline Usage
 -----------------
 
-chef2docker [image_name] [chef_cookbook_dir]
+chef2docker [image_name] [chef_cookbook_name]
+
 License
 -------
 

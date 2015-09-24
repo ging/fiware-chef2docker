@@ -33,26 +33,17 @@ def main():
     parser = argparse.ArgumentParser(
         description='Generates Docker images based on Chef cookbooks')
     parser.add_argument('dockerfile', metavar='DOCKER_FILE', help='The Dockerfile to deploy in')
-    parser.add_argument('chef_dir', metavar='CHEF_DIR', help='The chef cookbook to deploy')
+    parser.add_argument('chef_name', metavar='CHEF_DIR', help='The chef cookbook to deploy')
     args = parser.parse_args()
     docker_file = os.path.abspath(args.dockerfile)
-    chef_dir = os.path.abspath(args.chef_dir)
+    chef_name = os.path.abspath(args.chef_dir)
     # generate the docker image
     print "Connecting to Docker Client...",
     dc = DockerClient()
     print "OK"
-    print "Generating Initial Image...",
-    sta = dc.generate_initial_image(docker_file, chef_dir)
+    print "Generating Image...",
+    sta = dc.generate_image(docker_file, chef_name)
     print "OK" if sta else "FAILED"
-    exit(1)
-    print("Deploying Cookbook...",)
-    res = dc.deploy_cookbook()
-    print("OK")
-    LOG.debug(res)
-    print("Generating Final Image...",)
-    res = dc.generate_final_image()
-    print("OK")
-    LOG.debug(res)
 
 if __name__ == '__main__':
     main()
