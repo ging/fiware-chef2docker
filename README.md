@@ -21,8 +21,20 @@ No installation is necessary
 
 Commandline Usage
 -----------------
+```bash
+usage: chef2docker.py [-h] [-f] [-H HOST] [-v] chef_name
 
-chef2docker [chef_cookbook_name]
+Generates Docker images based on Chef cookbooks
+
+positional arguments:
+  chef_name      The chef cookbook to deploy
+
+optional arguments:
+  -h, --help     show this help message and exit
+  -f, --fast     Fast save (RAM intensive), slow commandline save by default
+  -H HOST        docker url (defaults to local socket
+  -v, --verbose  Show verbose messages
+```
 
 Usage Notes
 -----------

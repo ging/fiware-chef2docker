@@ -16,11 +16,9 @@
 from __future__ import unicode_literals
 import argparse
 import logging
-import os
 from docker_client import DockerClient
 
 LOG = logging.getLogger()
-logging.basicConfig(level=logging.DEBUG)
 
 
 def main():
@@ -31,16 +29,31 @@ def main():
     """
     # Parse the command line arguments
     parser = argparse.ArgumentParser(description='Generates Docker images based on Chef cookbooks')
-    parser.add_argument('chef_name', metavar='CHEF_NAME', help='The chef cookbook to deploy')
+    parser.add_argument('chef_name', help='The chef cookbook to deploy')
+    parser.add_argument('-f', '--fast', dest='fast', action='store_true', help='Fast save (RAM intensive), slow commandline save by default')
+    parser.add_argument('-H', dest='host', help='docker url (defaults to local socket')
+    parser.add_argument('-v', '--verbose', dest='debug', action='store_true', help='Show verbose messages')
     args = parser.parse_args()
 
+    # logging management
+    lev = logging.ERROR
+    if args.debug:
+        lev = logging.DEBUG
+    logging.basicConfig(level=lev)
     # generate the docker image
     print "Connecting to Docker Client...",
-    dc = DockerClient()
+    dc = DockerClient(args.host)
     print "OK"
     print "Generating Image...",
     sta = dc.generate_image("ChefImage.docker", args.chef_name)
     print "OK" if sta else "FAILED"
+    print "Saving Image file docker-%s.tar to disk ..." % args.chef_name,
+    if args.fast:
+        dc.save_image()
+    else:
+        dc.save_image_cmd()
+    print "OK"
+
 
 if __name__ == '__main__':
     main()

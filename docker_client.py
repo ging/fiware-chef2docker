@@ -13,14 +13,12 @@
 #  under the License.
 from __future__ import unicode_literals
 import os
-from docker.errors import DockerException, NotFound
+import subprocess
+from docker.errors import DockerException
 from docker import Client as DC
-import sys
 import logging
-from io import BytesIO
 
 LOG = logging.getLogger()
-logging.basicConfig(level=logging.DEBUG)
 
 
 class DockerClient(object):
@@ -28,15 +26,14 @@ class DockerClient(object):
     Wrapper for Docker client
     """
 
-    def __init__(self, url=None):
+    def __init__(self, host="unix:///var/run/docker.sock"):
         """Connect to docker server"""
-        if not url:
-            url = "unix:///var/run/docker.sock"
+        self.host = host
         self.container = None
         self.image_name = None
         self.cookbook_name = None
         try:
-            self.dc = DC(base_url=url)
+            self.dc = DC(base_url=self.host)
         except DockerException as e:
             LOG.error("Docker client error: %s" % e)
             raise e
@@ -45,10 +42,6 @@ class DockerClient(object):
         """generate docker image"""
         status = True
         self.cookbook_name = chef_name
-        # # inject config files dir to syspath
-        # LOG.debug("Injecting %s dir to syspath..." % root_dir)
-        # sys.path.insert(0, root_dir)
-        # os.chdir(root_dir)
 
         # configure chef-solo
         with open("solo.json.sample", "r") as f:
@@ -79,3 +72,16 @@ class DockerClient(object):
             if "stream" in l.keys():
                 LOG.debug(l['stream'].replace("\n",""))
         return status
+
+    def save_image(self):
+        """ Faster for machines with lots of ram """
+        with open('%s.tar' % self.image_name, 'wb') as image_tar:
+            image_tar.write(self.dc.get_image("%s:latest" % self.image_name).data)
+
+    def save_image_cmd(self):
+        """Slower but safer for low ram machines"""
+        host = ""
+        if self.host:
+            host = "-H %s " % self.host
+        cmd = "docker {host}save -o {dest} {name}:latest".format(host=host, name=self.image_name, dest='%s.tar' % self.image_name)
+        subprocess.call([cmd], shell=True)
