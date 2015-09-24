@@ -30,19 +30,16 @@ def main():
     :return:
     """
     # Parse the command line arguments
-    parser = argparse.ArgumentParser(
-        description='Generates Docker images based on Chef cookbooks')
-    parser.add_argument('dockerfile', metavar='DOCKER_FILE', help='The Dockerfile to deploy in')
-    parser.add_argument('chef_name', metavar='CHEF_DIR', help='The chef cookbook to deploy')
+    parser = argparse.ArgumentParser(description='Generates Docker images based on Chef cookbooks')
+    parser.add_argument('chef_name', metavar='CHEF_NAME', help='The chef cookbook to deploy')
     args = parser.parse_args()
-    docker_file = os.path.abspath(args.dockerfile)
-    chef_name = os.path.abspath(args.chef_dir)
+
     # generate the docker image
     print "Connecting to Docker Client...",
     dc = DockerClient()
     print "OK"
     print "Generating Image...",
-    sta = dc.generate_image(docker_file, chef_name)
+    sta = dc.generate_image("ChefImage.docker", args.chef_name)
     print "OK" if sta else "FAILED"
 
 if __name__ == '__main__':

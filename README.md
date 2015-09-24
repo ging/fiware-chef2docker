@@ -1,13 +1,6 @@
 FI-Ware Chef2Docker
 ======================
-**WARNING: WORK IN PROGRESS**
 
-**Table of Contents**
-
-- [Description](#description)
-- [Features Implemented](#features-implemented)
-- [License](#license)
-	
 Description
 -----------
 
@@ -29,7 +22,7 @@ No installation is necessary
 Commandline Usage
 -----------------
 
-chef2docker [image_name] [chef_cookbook_name]
+chef2docker [chef_cookbook_name]
 
 License
 -------

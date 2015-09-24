@@ -67,7 +67,7 @@ class DockerClient(object):
         self.image_name = "docker-%s" % self.cookbook_name
         LOG.debug("generating image %s" % self.image_name)
         resp = self.dc.build(
-            path=root_dir,
+            path=os.path.split(os.path.abspath(__file__))[0],
             rm=True,
             tag=self.image_name,
             decode=True,
