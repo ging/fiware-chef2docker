@@ -24,6 +24,11 @@ Commandline Usage
 
 chef2docker [chef_cookbook_name]
 
+Usage Notes
+-----------
+
+Doesn't solve chef dependencies, therefore all dependant chef recipes must be included in the cookbook
+
 License
 -------
 
